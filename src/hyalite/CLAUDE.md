@@ -5,20 +5,28 @@ Sections are Hero → About → Footer.
 
 ## Implementation notes
 
-- three.js **r128**, loaded as UMD `<script>` tags from jsdelivr. Pinned to r128 because the bloom
-  chain uses `examples/js/postprocessing/*`, which later versions removed. Upgrading means moving to
-  ES modules + an import map (or Vite).
+- three.js **r128**, loaded as ES modules from jsdelivr through an `<script type="importmap">`
+  (`three` → `build/three.module.js`, `three/addons/` → `examples/jsm/`). r128 ships the same
+  postprocessing chain under `examples/jsm/`, so the ESM move did not force a version bump; the pin
+  stays because later versions reworked those addons. The addon files import the bare specifier
+  `three`, which is why the import map is required rather than optional.
+- The page is a single `<script type="module">`. Libraries are pulled in with **dynamic `import()`
+  inside `try`/`catch`**, not static imports: a static import that fails (CDN down, or a browser
+  without import-map support) would abort the whole module and take the fallbacks with it. Top-level
+  `await` is fine here — one module, one entry point, so the WebKit multi-importer bug does not apply.
+- Because it is a module, `file://` no longer works; the sample needs a local server.
 - Post-processing: `RenderPass` → `UnrealBloomPass` → a custom `ShaderPass` that compresses tone
   while preserving hue, so highlights don't blow out to cyan. The `EffectComposer` renders into a
   `HalfFloatType` target so compositing stays in HDR.
-- Scrolling goes through **Lenis 1.3.26**, also a UMD `<script>` from jsdelivr (global `Lenis`).
-  Pinned so the class names the CSS relies on (`html.lenis`, `.lenis-stopped`) stay stable. It runs
-  with `autoRaf: true`, so Lenis ticks in its own rAF, separate from the render loop. Only the
+- Scrolling goes through **Lenis 1.3.26**, imported from jsdelivr as `dist/lenis.mjs` (default
+  export). Pinned so the class names the CSS relies on (`html.lenis`, `.lenis-stopped`) stay stable.
+  It runs with `autoRaf: true`, so Lenis ticks in its own rAF, separate from the render loop. Only the
   rules of `lenis.css` this page needs are inlined, rather than pulling a second CDN file.
-- Fallbacks: a missing `THREE` global or a failed WebGL context sets `html.no-webgl`, and CSS draws
-  a gradient background instead. Under `prefers-reduced-motion` the animation clock is scaled to
+- Fallbacks: a rejected `import('three')` or a failed WebGL context sets `html.no-webgl`, and CSS
+  draws a gradient background instead. If only the postprocessing addons fail to load, the scene
+  still renders without bloom. Under `prefers-reduced-motion` the animation clock is scaled to
   0.35, the CSS animations stop, and Lenis is not created at all. Lenis is likewise skipped if its
-  script fails to load — both cases fall back to native scrolling.
+  import fails — both cases fall back to native scrolling.
 
 ## Scene elements and where to tune them
 

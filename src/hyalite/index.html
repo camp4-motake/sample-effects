@@ -271,29 +271,32 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script>
-(function () {
-  // ---------- ページUI ----------
-  requestAnimationFrame(function () { document.getElementById('intro').classList.add('on'); });
-  var io = new IntersectionObserver(function (es) {
-    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
-  }, { threshold: 0.2 });
-  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/",
+    "lenis": "https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.mjs"
+  }
+}
+</script>
+<script type="module">
+// ---------- ページUI ----------
+// ライブラリに依存しないので、CDN を待たずに先に実行する
+requestAnimationFrame(function () { document.getElementById('intro').classList.add('on'); });
+const io = new IntersectionObserver(function (es) {
+  es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+}, { threshold: 0.2 });
+document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
 
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- スムーススクロール（Lenis） ----------
-  // 読み込み失敗時と prefers-reduced-motion ではネイティブスクロールのまま
-  var lenis = null;
-  if (typeof Lenis !== 'undefined' && !reduceMotion) {
+// ---------- スムーススクロール（Lenis） ----------
+// 動的 import なので、読み込み失敗時と prefers-reduced-motion ではネイティブスクロールのまま
+let lenis = null;
+if (!reduceMotion) {
+  try {
+    const { default: Lenis } = await import('lenis');
     lenis = new Lenis({
       lerp: 0.085,          // 追従の柔らかさ。小さいほどゆっくり追いつく
       wheelMultiplier: 0.9, // ホイール1刻みの移動量。氷のように落ち着いた速さに
@@ -302,15 +305,26 @@
     // ページ内リンクも Lenis 経由へ。CSS の scroll-behavior:smooth とは併用できない
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
       a.addEventListener('click', function (ev) {
-        var el = document.querySelector(a.getAttribute('href'));
+        const el = document.querySelector(a.getAttribute('href'));
         if (!el) { return; }
         ev.preventDefault();
         lenis.scrollTo(el, { duration: 1.6 });
       });
     });
-  }
+  } catch (e) { lenis = null; }
+}
 
-  if (typeof THREE === 'undefined') { document.documentElement.classList.add('no-webgl'); return; }
+await initScene();
+
+// ---------- 3D シーン ----------
+async function initScene() {
+  // three 本体の読み込み失敗（import map 未対応ブラウザを含む）は CSS フォールバックへ
+  let THREE;
+  try {
+    THREE = await import('three');
+  } catch (e) {
+    document.documentElement.classList.add('no-webgl'); return;
+  }
 
   var canvas = document.getElementById('gl');
   var renderer;
@@ -535,36 +549,39 @@
   scene.add(dust);
 
   // ---------- ポストエフェクト（ブルーム） ----------
+  // アドオンだけ落ちた場合はブルーム無しで描画を続ける
   var composer = null, bloom = null;
-  if (THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
-    try {
-      // HDRのまま合成し、最後に色相を保ったまま圧縮（シアンへの白飛びを防ぐ）
-      var rt = new THREE.WebGLRenderTarget(256, 256, {
-        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
-        format: THREE.RGBAFormat, type: THREE.HalfFloatType
-      });
-      composer = new THREE.EffectComposer(renderer, rt);
-      composer.addPass(new THREE.RenderPass(scene, camera));
-      bloom = new THREE.UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.6, 0.2);
-      composer.addPass(bloom);
-      if (THREE.ShaderPass) {
-        composer.addPass(new THREE.ShaderPass({
-          uniforms: { tDiffuse: { value: null } },
-          vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-          fragmentShader: [
-            'uniform sampler2D tDiffuse; varying vec2 vUv;',
-            'void main(){',
-            ' vec3 c=max(texture2D(tDiffuse,vUv).rgb,0.0);',
-            ' float m=max(max(c.r,c.g),c.b);',
-            ' vec3 o=m>0.8 ? c*(0.8+log(1.0+(m-0.8)*1.5)*0.32)/m : c;',
-            ' o=mix(o,vec3(0.9,0.96,1.0)*min(m,1.0),smoothstep(1.4,5.0,m)*0.55);',
-            ' gl_FragColor=vec4(o,1.0);',
-            '}'
-          ].join('\n')
-        }));
-      }
-    } catch (e) { composer = null; }
-  }
+  try {
+    const [{ EffectComposer }, { RenderPass }, { ShaderPass }, { UnrealBloomPass }] = await Promise.all([
+      import('three/addons/postprocessing/EffectComposer.js'),
+      import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/ShaderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js')
+    ]);
+    // HDRのまま合成し、最後に色相を保ったまま圧縮（シアンへの白飛びを防ぐ）
+    var rt = new THREE.WebGLRenderTarget(256, 256, {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat, type: THREE.HalfFloatType
+    });
+    composer = new EffectComposer(renderer, rt);
+    composer.addPass(new RenderPass(scene, camera));
+    bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.6, 0.2);
+    composer.addPass(bloom);
+    composer.addPass(new ShaderPass({
+      uniforms: { tDiffuse: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: [
+        'uniform sampler2D tDiffuse; varying vec2 vUv;',
+        'void main(){',
+        ' vec3 c=max(texture2D(tDiffuse,vUv).rgb,0.0);',
+        ' float m=max(max(c.r,c.g),c.b);',
+        ' vec3 o=m>0.8 ? c*(0.8+log(1.0+(m-0.8)*1.5)*0.32)/m : c;',
+        ' o=mix(o,vec3(0.9,0.96,1.0)*min(m,1.0),smoothstep(1.4,5.0,m)*0.55);',
+        ' gl_FragColor=vec4(o,1.0);',
+        '}'
+      ].join('\n')
+    }));
+  } catch (e) { composer = null; bloom = null; }
 
   // ---------- サイズ ----------
   function resize() {
@@ -641,7 +658,7 @@
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-})();
+}
 </script>
 </body>
 </html>

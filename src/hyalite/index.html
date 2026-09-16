@@ -25,6 +25,12 @@
 
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
+  /* Lenis(1.3.26) 用。ネイティブのスムーススクロールは Lenis と競合するので、適用時は切る */
+  html.lenis { scroll-behavior: auto; }
+  html.lenis, html.lenis body { height: auto; }
+  .lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+  .lenis [data-lenis-prevent] { overscroll-behavior: contain; }
+  .lenis.lenis-smooth iframe { pointer-events: none; }
   body {
     margin: 0;
     background: var(--black);
@@ -265,6 +271,7 @@
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -281,9 +288,30 @@
   }, { threshold: 0.2 });
   document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
 
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- スムーススクロール（Lenis） ----------
+  // 読み込み失敗時と prefers-reduced-motion ではネイティブスクロールのまま
+  var lenis = null;
+  if (typeof Lenis !== 'undefined' && !reduceMotion) {
+    lenis = new Lenis({
+      lerp: 0.085,          // 追従の柔らかさ。小さいほどゆっくり追いつく
+      wheelMultiplier: 0.9, // ホイール1刻みの移動量。氷のように落ち着いた速さに
+      autoRaf: true         // Lenis 自身の rAF で更新（描画ループとは独立）
+    });
+    // ページ内リンクも Lenis 経由へ。CSS の scroll-behavior:smooth とは併用できない
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+      a.addEventListener('click', function (ev) {
+        var el = document.querySelector(a.getAttribute('href'));
+        if (!el) { return; }
+        ev.preventDefault();
+        lenis.scrollTo(el, { duration: 1.6 });
+      });
+    });
+  }
+
   if (typeof THREE === 'undefined') { document.documentElement.classList.add('no-webgl'); return; }
 
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var canvas = document.getElementById('gl');
   var renderer;
   try {
@@ -556,6 +584,7 @@
     target = max > 0 ? Math.min(Math.max(window.scrollY / max, 0), 1) : 0;
   }
   window.addEventListener('scroll', onScroll, { passive: true });
+  if (lenis) { lenis.on('scroll', onScroll); } // Lenis の補間後の位置でカメラを動かす
   onScroll();
 
   var mx = 0, my = 0, smx = 0, smy = 0;

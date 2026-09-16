@@ -11,9 +11,14 @@ Sections are Hero → About → Footer.
 - Post-processing: `RenderPass` → `UnrealBloomPass` → a custom `ShaderPass` that compresses tone
   while preserving hue, so highlights don't blow out to cyan. The `EffectComposer` renders into a
   `HalfFloatType` target so compositing stays in HDR.
+- Scrolling goes through **Lenis 1.3.26**, also a UMD `<script>` from jsdelivr (global `Lenis`).
+  Pinned so the class names the CSS relies on (`html.lenis`, `.lenis-stopped`) stay stable. It runs
+  with `autoRaf: true`, so Lenis ticks in its own rAF, separate from the render loop. Only the
+  rules of `lenis.css` this page needs are inlined, rather than pulling a second CDN file.
 - Fallbacks: a missing `THREE` global or a failed WebGL context sets `html.no-webgl`, and CSS draws
   a gradient background instead. Under `prefers-reduced-motion` the animation clock is scaled to
-  0.35 and the CSS animations stop.
+  0.35, the CSS animations stop, and Lenis is not created at all. Lenis is likewise skipped if its
+  script fails to load — both cases fall back to native scrolling.
 
 ## Scene elements and where to tune them
 
@@ -24,6 +29,20 @@ Sections are Hero → About → Footer.
 | Water | Large plane + `ShaderMaterial`; noise perturbs the normal, and only where the reflection vector points at the crystal's vertical axis (a segment) does it light up | noise amplitudes in `height()`, normal strength `0.3`, sharpness exponents such as `pow(c, 140.0)` |
 | Dust motes | `Points` + additive `ShaderMaterial` | `COUNT` |
 | Bloom | `UnrealBloomPass` | its `(strength, radius, threshold)` args and `bloom.strength` in `frame()` |
+
+## Scrolling
+
+- `lerp: 0.085` is how softly Lenis follows the wheel (smaller = slower to catch up), and
+  `wheelMultiplier: 0.9` slightly damps one wheel notch to keep the pace glacial. Touch is left on
+  the browser's native scrolling (Lenis's `syncTouch` default).
+- In-page links are intercepted and handed to `lenis.scrollTo(el, { duration: 1.6 })`; they no
+  longer update `location.hash`.
+- `scroll-behavior: smooth` is the fallback for when Lenis is absent. It cannot coexist with
+  Lenis's programmatic scrolling, so `html.lenis { scroll-behavior: auto; }` turns it off once
+  Lenis is live. Keep that rule keyed on the class — a `html:not(.lenis)` form would outrank the
+  `prefers-reduced-motion` override on specificity and break it.
+- `onScroll` is subscribed to both the native `scroll` event and Lenis's, so the camera tracks the
+  interpolated position.
 
 ## Scroll choreography (in `frame()`)
 

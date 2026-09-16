@@ -1,20 +1,19 @@
 # CLAUDE.md — Hyalite LP
 
-A one-page landing page sample: a three.js crystal hovering above rippling water.
-Sections are Hero → About → Footer. All copy is English (`lang="en"`); code comments are Japanese.
-See the root `CLAUDE.md` for repository-wide conventions and how to serve the page.
+A one-page landing page: a three.js crystal hovering above rippling water.
+Sections are Hero → About → Footer.
 
 ## Implementation notes
 
-- three.js **r128**, loaded as UMD `<script>` tags from jsdelivr.
-  - Pinned to r128 because the bloom pass uses `examples/js/postprocessing/*`, which was removed in
-    later versions. Upgrading means moving to ES modules + an import map (or Vite).
-- Post-processing chain: `RenderPass` → `UnrealBloomPass` → a custom `ShaderPass` that compresses
-  tone while preserving hue, so highlights don't blow out to cyan.
-  - The `EffectComposer` gets a `HalfFloatType` render target so compositing stays in HDR.
-- If WebGL (or the `THREE` global) is unavailable, `html.no-webgl` is set and CSS falls back to a
-  gradient background.
-- Under `prefers-reduced-motion`, the animation clock is scaled to 0.35 and CSS animations stop.
+- three.js **r128**, loaded as UMD `<script>` tags from jsdelivr. Pinned to r128 because the bloom
+  chain uses `examples/js/postprocessing/*`, which later versions removed. Upgrading means moving to
+  ES modules + an import map (or Vite).
+- Post-processing: `RenderPass` → `UnrealBloomPass` → a custom `ShaderPass` that compresses tone
+  while preserving hue, so highlights don't blow out to cyan. The `EffectComposer` renders into a
+  `HalfFloatType` target so compositing stays in HDR.
+- Fallbacks: a missing `THREE` global or a failed WebGL context sets `html.no-webgl`, and CSS draws
+  a gradient background instead. Under `prefers-reduced-motion` the animation clock is scaled to
+  0.35 and the CSS animations stop.
 
 ## Scene elements and where to tune them
 
@@ -49,5 +48,4 @@ looking up at the crystal:
 
 - The bright edge lines on the crystal (`EdgesGeometry` + `LineSegments`) were removed. Do not
   bring them back.
-- Copy was translated from Japanese to English. Keep it English.
 - Display type was changed from Cormorant Garamond to Questrial.

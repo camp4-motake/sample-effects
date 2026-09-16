@@ -37,14 +37,14 @@ scroll choreography, check both the top of the page and the bottom.
 ## Conventions for samples
 
 - **One sample = one folder = one self-contained `index.html`.** Keep HTML, CSS and JS in that
-  single file; pull external libraries from a CDN at a pinned version (three.js is pinned to r128
-  in hyalite — see its CLAUDE.md for why).
+  single file, and pull external libraries from a CDN at a pinned version — the sample's own
+  `CLAUDE.md` records which version and why it is pinned there.
 - Put sample-specific knowledge in that sample's `CLAUDE.md`: what each tunable number does, and
   which changes were deliberately made and must not be undone. Keep this root file for things that
   apply to every sample.
-- Provide graceful degradation: a CSS-only fallback when WebGL is unavailable (hyalite sets
-  `html.no-webgl`), and slower or disabled motion under `prefers-reduced-motion`.
-- Code comments are written in Japanese; user-facing copy on the pages is English.
+- Provide graceful degradation: a CSS-only fallback when WebGL is unavailable, and slower or
+  disabled motion under `prefers-reduced-motion`.
+- Code comments are written in Japanese; user-facing copy on the pages is English (`lang="en"`).
 
 ## Commits
 

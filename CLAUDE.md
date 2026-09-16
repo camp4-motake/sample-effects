@@ -46,6 +46,22 @@ scroll choreography, check both the top of the page and the bottom.
   disabled motion under `prefers-reduced-motion`.
 - Code comments are written in Japanese; user-facing copy on the pages is English (`lang="en"`).
 
+## Implementation guidance
+
+Samples are plain HTML / CSS / client-side JS, and the platform moves fast — training-era patterns
+go stale. Before writing or reworking markup, styles, or browser JS, consult
+[GoogleChrome/modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) via the
+`modern-web-guidance` skill, and prefer what it recommends over habit.
+
+- Run it up front for layout and UI (dialog/popover, anchor positioning, container queries, `:has()`),
+  scroll and motion (View Transitions, scroll-driven animations, parallax and reveals), and
+  performance work (LCP / INP, `content-visibility`, fetch priority, image loading) — all of which
+  these samples lean on heavily.
+- Reach for a modern platform feature instead of a library or a hand-rolled polyfill when one exists,
+  and keep the graceful-degradation rule above: feature-detect, and fall back rather than break.
+- When a guidance-driven choice is non-obvious (a newer API picked over the familiar one, or
+  deliberately *not* picked), record the reason in that sample's `CLAUDE.md` so it is not reverted.
+
 ## Commits
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):

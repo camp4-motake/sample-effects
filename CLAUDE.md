@@ -25,8 +25,9 @@ npx serve .                 # from the repo root, then open /src/<sample>/
 python3 -m http.server 8000 # same thing without npx
 ```
 
-Opening `index.html` directly works, but a local server makes Google Fonts and jsdelivr loads
-reliable.
+A local server is required for samples that load ES modules (`src/hyalite` does), and it also makes
+Google Fonts and jsdelivr loads reliable for the rest; `file://` only works for samples with no
+module scripts.
 
 ## Verifying changes
 

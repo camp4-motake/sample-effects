@@ -163,7 +163,7 @@
     haze: 1.2,
     vignette: 0.5,
     // Render
-    quality: 0.25,     // 自動調整の下限 MIN_Q より低いが、自動調整は下げる方向にしか働かないのでそのまま保たれる
+    quality: 0.25,     // 内部解像度の倍率。自動調整の下限 MIN_Q と同じ
     autoQuality: true,
   };
   // ?phase=0〜1 で位相を固定する（スクリーンショットやループ継ぎ目の確認用）。GUI の Freeze と同じ
@@ -359,8 +359,8 @@
     [gl.getUniformLocation(prog, 'u' + key[0].toUpperCase() + key.slice(1)), key]);
 
   // 内部解像度の倍率（params.quality）。炎は柔らかいので CSS ピクセルより粗くても破綻しない。
-  // autoQuality のとき、描画が重い端末では frame() 内で段階的に下げる
-  const MIN_Q = 0.4;
+  // autoQuality のとき、描画が重い端末では frame() 内で段階的に下げる。GUI スライダーの下限も兼ねる
+  const MIN_Q = 0.25;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -460,7 +460,7 @@
     lookF.add(params, 'vignette', 0, 1.5, 0.05).name('Vignette');
 
     const renderF = gui.addFolder('Render');
-    renderF.add(params, 'quality', 0.25, 1, 0.05).name('Resolution').listen().onChange(resize);
+    renderF.add(params, 'quality', MIN_Q, 1, 0.05).name('Resolution').listen().onChange(resize);
     renderF.add(params, 'autoQuality').name('Auto resolution');
     renderF.add(stats, 'fps').name('FPS').disable().listen();
     setInterval(() => { stats.fps = `${fps.toFixed(0)}  (${canvas.width}×${canvas.height})`; }, 500);

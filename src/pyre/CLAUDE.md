@@ -95,12 +95,12 @@ constants in the shader.
 
 - The canvas renders at `params.quality × min(dpr, 2)` of CSS pixels (default `0.25`, GUI
   "Resolution") and CSS upscales it, since fire is soft. While "Auto resolution" is on, if more
-  than about 20 frames drop below 40 fps, `quality` steps down by 0.1 to a floor of `0.4`. The GUI
-  shows the FPS and the canvas size. The default `0.25` is below that floor on purpose: it was
-  picked with the GUI. Auto resolution only ever lowers the value, so it stays at 0.25. The floor looks visibly chunky, but it only kicks in on weak GPUs or
-  software GL.
+  than about 20 frames drop below 40 fps, `quality` steps down by 0.1 to a floor of `MIN_Q`
+  (0.25, also the slider minimum). The GUI shows the FPS and the canvas size. The default is
+  already the floor (picked with the GUI), so Auto resolution only acts after Resolution has been
+  raised.
 - The cost is two `flame()` layers (6-octave fbm + 3-octave ridged each) plus a 3-octave warp ×2.
-  Remove octaves before lowering `quality` any further.
+  `quality` cannot go lower, so remove octaves if more speed is needed.
 
 ## Design
 

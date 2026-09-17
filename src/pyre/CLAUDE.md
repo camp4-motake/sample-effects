@@ -50,19 +50,21 @@ parameters for checking and tuning.
 
 ## How the seamless loop works (do not break this)
 
-The JS passes `uPhase` (0–1, `params.loop` = 18 seconds by default, played at `speed` 1.25, so one cycle is 14.4 s) as the only time input. Every noise lookup uses `pnoise`, a
-gradient noise that repeats with period `rep`. The y lattice (rising) and the z lattice (shape
+The JS passes `uPhase` (0–1) as the only time input. One cycle lasts `loop / speed` seconds
+(18 / 1.25 = 14.4 s with the defaults). Every noise lookup uses `pnoise`, a gradient noise that repeats with period `rep`. The y lattice (rising) and the z lattice (shape
 change) both repeat every `REP = 4`, and each fbm octave doubles both its frequency and `rep`.
 Over one loop:
 
 - the main flame moves up `REP * uRise` (4 periods by default) and forward in z by `REP * uEvol` (2 periods),
 - the domain warp and the haze move up `REP` (1 period),
-- the tongue-height map moves forward in z by `evol * 0.5` (1 period).
+- the tongue-height map and the haze move forward in z by `evol * 0.5`, which is `2 * uEvol` — a
+  whole number of periods only when `uEvol` is even (1 period at the default 2). Odd Churn values
+  currently leave a seam in these two terms.
 
 Each of these is a whole number of periods, so phase 1 renders like phase 0. A `readPixels`
 comparison at `?phase=0` and `?phase=1` (Auto resolution off, fixed resolution) found only 19
-channel values off by 1/255, which is float rounding. A frame 0.1 s apart differs by up to 252. When adding a time-dependent term,
-make sure its y or z offset at phase 1 is a whole multiple of `REP`. Never scale y or z inside
+channel values off by 1/255, which is float rounding. A frame 0.1 s apart differs by up to 252.
+When adding a time-dependent term, make sure its y or z offset at phase 1 is a whole multiple of `REP`. Never scale y or z inside
 `fbm` by anything except ×2 per octave. Constant offsets are fine, and x is not periodic, so it can
 be scaled freely.
 
@@ -73,7 +75,7 @@ constants in the shader.
 
 | Part | GUI key → uniform | What it does / fixed constants |
 |---|---|---|
-| Loop length / speed | `loop` (18), `speed` (1.25) | JS only. Screen rise speed ≈ `REP*rise / (1.8 * loop)` heights per second |
+| Loop length / speed | `loop` (18), `speed` (1.25) | JS only. Screen rise speed ≈ `REP*rise*speed / (1.8 * loop)` heights per second |
 | Rise / churn | `rise` (4) → `uRise`, `evol` (2) → `uEvol` | Periods per loop; **integers only** |
 | Domain warp | `warp` (0.5) → `uWarp` | Scales `w.x * 1.9`, `w.y * 1.1`, `w.y * 0.3`; warp frequency `x * 1.3` is fixed |
 | Tongue density | `stretch` (4.9) → `uStretch` | x frequency against the fixed `y * 1.8`; higher gives thinner, taller-looking tongues |
@@ -83,7 +85,7 @@ constants in the shader.
 | Edge softness | `sharp` (0.3) → `uSharp` | Width of `body = smoothstep(0, uSharp, heat)`. The `+ 0.12` in `T` keeps edges orange |
 | Intensity | `intensity` (7.1) → `uIntensity` | `T*T` gain |
 | Colour | `temp` (0.69) → `uTemp` | `1 - exp(-T * vec3(3.0, 1.1*t, 0.30*t²))`, then `pow(..., vec3(1.1, 1.45, 2.0))`; higher pushes toward yellow/white |
-| Depth | `back` (1) → `uBack` | Back layer × `vec3(0.32, 0.11, 0.03)`, hidden where `front` is bright (`cover`); too strong fills the gaps with a red wash |
+| Depth | `back` (1) → `uBack` | Back layer × `vec3(0.32, 0.11, 0.03)`, hidden where the front layer is bright (`cover`); too strong fills the gaps with a red wash |
 | Haze / vignette | `haze` (1.2), `vignette` (0.5) | Warm glow above the flames; edge darkening |
 | Portrait | — | `k = pow(1/aspect, 0.6)` keeps tongues from stretching on tall screens; 1.0 would be fully width-based and too short |
 

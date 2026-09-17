@@ -43,7 +43,9 @@ parameters for checking and tuning.
   to the bottom, where it would sit on the copyright.
 - `Copy settings (JSON)` copies the current values (without phase/freeze) in a shape that can be
   pasted back into `DEFAULTS`, or logs them when the clipboard is unavailable. `Reset to defaults`
-  calls `gui.reset()`. The `H` key toggles the panel.
+  copies `DEFAULTS` (plus the `?phase` overrides) back into `params` and refreshes the controllers.
+  It does not use `gui.reset()`, which restores the values from when the GUI was built (by then
+  `phase` has advanced). The `H` key toggles the panel.
 - Headless Chromium (SwiftShader) screenshots show a transparent strip between the bottom of the
   open panel and its `max-height`, but only while the WebGL canvas is visible. This is a screenshot
   compositing artifact, not a page bug; don't "fix" it by changing the layout.

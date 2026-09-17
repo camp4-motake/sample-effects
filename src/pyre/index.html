@@ -481,9 +481,11 @@
         setTimeout(() => copyCtrl.name(COPY_LABEL), 1500);
       },
     }, 'copy').name(COPY_LABEL);
+    // gui.reset() は GUI 生成時点の値に戻すだけなので、DEFAULTS（と URL 指定）から戻す
     gui.add({
       reset: () => {
-        gui.reset();
+        Object.assign(params, DEFAULTS, urlOverrides);
+        gui.controllersRecursive().forEach((c) => c.updateDisplay());
         resize();
       },
     }, 'reset').name('Reset to defaults');

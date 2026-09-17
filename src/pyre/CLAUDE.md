@@ -29,10 +29,13 @@ parameters for checking and tuning.
 - The script is **injected dynamically after the render loop starts**. A slow or failed CDN load
   never delays or breaks the fire; `onerror` only logs a warning. When WebGL is unavailable the GUI
   is not built at all, because there is nothing to tune.
-- Every tunable value lives in `DEFAULTS` in the JS. `params` is the live copy, and `UNIFORMS` maps
-  shader uniforms to its keys; all of them are uploaded each frame. To add a knob, add a key to
-  `DEFAULTS`, a `uniform float` in the shader, an entry in `UNIFORMS`, and a controller in
+- Every tunable value lives in `DEFAULTS` in the JS. `params` is the live copy (with the `?phase`
+  overrides applied), and `UNIFORM_KEYS` lists the keys sent to the shader; each key `foo` goes to
+  `uniform float uFoo`, and all of them are uploaded each frame. To add a knob, add a key to
+  `DEFAULTS`, a `uniform float` in the shader, the key in `UNIFORM_KEYS`, and a controller in
   `buildGui()`.
+- Time state is `params.phase` alone (0–1); `frame()` advances it by `dt * speed / loop`. Do not
+  reintroduce a separate seconds clock that has to be kept in sync with it.
 - `Rise` and `Churn` sliders use step 1 on purpose: non-integer values break the seamless loop
   (see below). Keep that step.
 - Placement: top-left on desktop, because the title owns the top-right. At `max-width: 600px` the

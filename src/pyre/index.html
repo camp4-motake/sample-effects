@@ -17,9 +17,7 @@
     --sans: "Instrument Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
     --pad: clamp(16px, 4vw, 48px);
   }
-  /* 黒背景はデザインの一部なので、ライト / ダーク設定でも同じトーンを保つ */
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --black: #000000; --ash: #f6ede4; } }
-  :root[data-theme="dark"] { --black: #000000; --ash: #f6ede4; }
+  /* 黒背景はデザインの一部なので、ライト / ダーク設定で色を切り替えない */
 
   *, *::before, *::after { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -38,7 +36,6 @@
     inset: 0;
     width: 100%;
     height: 100%;
-    display: block;
     opacity: 0;
     transition: opacity 1.8s ease;
   }
@@ -66,16 +63,14 @@
   .title {
     align-self: start;
     justify-self: end;
-    margin: 0;
+    /* letter-spacing の末尾分だけ右に余白ができるので打ち消し、右端をパディングにそろえる */
+    margin: 0 -0.32em 0 0;
     font-family: var(--display);
     font-weight: 400;
     font-size: clamp(18px, 1.9vw, 28px);
     line-height: 1;
     letter-spacing: 0.32em;
-    /* letter-spacing の末尾分だけ右に余白ができるので打ち消し、右端をパディングにそろえる */
-    margin-right: -0.32em;
     text-transform: uppercase;
-    color: var(--ash);
     text-shadow:
       0 0 0.35em rgba(255, 120, 30, .35),
       0 0 1.2em rgba(255, 80, 10, .25);
@@ -88,7 +83,6 @@
     font-size: 12px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--ash);
     opacity: .85;
     /* 明るい炎の根元に重なるので、濃い影で読みやすさを確保する */
     text-shadow: 0 0 6px rgba(40, 8, 0, .9), 0 0 16px rgba(40, 8, 0, .7);
@@ -118,10 +112,9 @@
     to   { opacity: 1; transform: none; filter: blur(0); }
   }
   @keyframes fade { from { opacity: 0; } }
-  /* 炎の明滅に合わせてタイトルの照り返しをゆっくり揺らす */
+  /* 炎の明滅に合わせてタイトルの照り返しをゆっくり揺らす（0% / 100% は .title の text-shadow） */
   @keyframes glow {
-    0%, 100% { text-shadow: 0 0 0.35em rgba(255, 120, 30, .35), 0 0 1.2em rgba(255, 80, 10, .25); }
-    50%      { text-shadow: 0 0 0.45em rgba(255, 140, 40, .5),  0 0 1.6em rgba(255, 90, 20, .35); }
+    50% { text-shadow: 0 0 0.45em rgba(255, 140, 40, .5), 0 0 1.6em rgba(255, 90, 20, .35); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -173,13 +166,15 @@
     quality: 0.25,     // 自動調整の下限 MIN_Q より低いが、自動調整は下げる方向にしか働かないのでそのまま保たれる
     autoQuality: true,
   };
-  const params = { ...DEFAULTS };
-  const UNIFORMS = {
-    uRise: 'rise', uEvol: 'evol', uHeight: 'height', uTongue: 'tongue',
-    uGaps: 'gaps', uStretch: 'stretch', uWarp: 'warp',
-    uStrands: 'strands', uSharp: 'sharp', uIntensity: 'intensity', uTemp: 'temp',
-    uBack: 'back', uHaze: 'haze', uVignette: 'vignette',
-  };
+  // ?phase=0〜1 で位相を固定する（スクリーンショットやループ継ぎ目の確認用）。GUI の Freeze と同じ
+  const fixedPhase = parseFloat(new URLSearchParams(location.search).get('phase'));
+  const urlOverrides = Number.isFinite(fixedPhase) ? { freeze: true, phase: fixedPhase } : {};
+  const params = { ...DEFAULTS, ...urlOverrides };
+  // シェーダに渡す値。uniform 名は 'u' + 先頭大文字のキー（rise → uRise）
+  const UNIFORM_KEYS = [
+    'rise', 'evol', 'height', 'tongue', 'gaps', 'stretch', 'warp',
+    'strands', 'sharp', 'intensity', 'temp', 'back', 'haze', 'vignette',
+  ];
 
   const vert = `
     attribute vec2 aPos;
@@ -201,6 +196,7 @@
     // y（上昇）と z（時間変化）の格子周期。位相 1 でちょうど整数周期ぶん進むので継ぎ目なくループする
     const float REP  = 4.0;
     const float TAU  = 6.28318530718;
+    const vec3  REP3 = vec3(256.0, REP, REP);   // 1 オクターブ目の周期（x は実質非周期）
 
     float hash(vec3 p) {
       return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
@@ -233,7 +229,7 @@
     // オクターブごとに周波数と周期を 2 倍にするので、周期性は保たれる
     float fbm(vec3 p, int oct) {
       float s = 0.0, a = 0.5;
-      vec3 rep = vec3(256.0, REP, REP);
+      vec3 rep = REP3;
       for (int i = 0; i < 6; i++) {
         if (i >= oct) break;
         s += a * pnoise(p, rep);
@@ -246,7 +242,7 @@
     // 尾根状ノイズ：炎の先端にある細い筋を作る
     float ridged(vec3 p) {
       float s = 0.0, a = 0.5;
-      vec3 rep = vec3(256.0, REP, REP);
+      vec3 rep = REP3;
       for (int i = 0; i < 3; i++) {
         float n = 1.0 - abs(pnoise(p, rep));
         s += a * n * n;
@@ -257,15 +253,15 @@
       return s;
     }
 
-    // 炎 1 層ぶん。w はドメインワープ、zo は層ごとの時間軸オフセット、h0 は平均の到達高さ
-    vec3 flame(float x, float y, vec2 w, float rise, float evol, float zo, float h0) {
+    // 炎 1 層ぶん。w はドメインワープ、zo は層ごとの時間軸オフセット
+    vec3 flame(float x, float y, vec2 w, float rise, float evol, float zo) {
       // 横に細かく縦に長いノイズで、縦方向に伸びた舌にする
       vec3 p = vec3(x * uStretch + w.x * 1.9 * uWarp, y * 1.8 - rise + w.y * 1.1 * uWarp, evol + zo);
       float n = fbm(p, 6);
 
       // 舌の高さを横方向にばらつかせる（ゆっくり変化）
       float tongue = fbm(vec3(x * 1.1, 0.0, evol * 0.5 + zo + 0.37), 3);
-      float h = h0 + tongue * uTongue;
+      float h = uHeight + tongue * uTongue;
 
       // 熱量：下ほど高く、上にいくほど減衰し、ノイズで削られて隙間ができる
       float heat = 0.85 - y / h + n * uGaps + w.y * 0.3 * uWarp;
@@ -295,7 +291,7 @@
       // 座標は高さ基準。縦長画面では炎が縦に伸びないよう座標を拡大するが、
       // 完全に幅基準にすると炎が低くなりすぎるので 0.6 乗で和らげる
       float k = pow(max(1.0 / aspect, 1.0), 0.6);
-      float x = (uv.x - 0.5) * aspect * k + 40.0;
+      float x = (uv.x - 0.5) * aspect * k + 40.0;   // +40 はノイズの見え方を選ぶシード（x は非周期）
       float y = uv.y * k;
 
       float ph = uPhase * REP;
@@ -308,8 +304,8 @@
       vec2 w = vec2(fbm(q, 3), fbm(q + vec3(31.7, 0.0, 0.0), 3));
 
       // 手前（明るく低い）と奥（暗く高い）の 2 層で奥行きを出す
-      vec3 front = flame(x, y, w, rise, evol, 0.0, uHeight);
-      vec3 back  = flame(x + 11.0, y * 1.1, w.yx, rise, evol, 7.0, uHeight);
+      vec3 front = flame(x, y, w, rise, evol, 0.0);
+      vec3 back  = flame(x + 11.0, y * 1.1, w.yx, rise, evol, 7.0);
       // 奥の層は赤く沈め、手前が明るいところでは隠れるように重ねる
       float cover = clamp(dot(front, vec3(0.6, 0.9, 0.3)) * 1.6, 0.0, 1.0);
       vec3 col = front + back * vec3(0.32, 0.11, 0.03) * uBack * (1.0 - cover);
@@ -337,18 +333,16 @@
     }
     return s;
   }
-  const vs = compile(gl.VERTEX_SHADER, vert);
-  const fs = compile(gl.FRAGMENT_SHADER, frag);
-  const prog = gl.createProgram();
-  if (vs && fs) {
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
+  function link(vs, fs) {
+    if (!vs || !fs) return null;
+    const p = gl.createProgram();
+    gl.attachShader(p, vs);
+    gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    return gl.getProgramParameter(p, gl.LINK_STATUS) ? p : null;
   }
-  if (!vs || !fs || !gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    root.classList.add('no-webgl');
-    return;
-  }
+  const prog = link(compile(gl.VERTEX_SHADER, vert), compile(gl.FRAGMENT_SHADER, frag));
+  if (!prog) { root.classList.add('no-webgl'); return; }
   gl.useProgram(prog);
 
   // 画面全体を覆う 1 枚の三角形
@@ -361,7 +355,8 @@
 
   const uRes = gl.getUniformLocation(prog, 'uRes');
   const uPhase = gl.getUniformLocation(prog, 'uPhase');
-  const uLocs = Object.entries(UNIFORMS).map(([u, key]) => [gl.getUniformLocation(prog, u), key]);
+  const uLocs = UNIFORM_KEYS.map((key) =>
+    [gl.getUniformLocation(prog, 'u' + key[0].toUpperCase() + key.slice(1)), key]);
 
   // 内部解像度の倍率（params.quality）。炎は柔らかいので CSS ピクセルより粗くても破綻しない。
   // autoQuality のとき、描画が重い端末では frame() 内で段階的に下げる
@@ -385,15 +380,8 @@
   let motion = reduceMotion.matches ? 0.3 : 1.0;
   reduceMotion.addEventListener('change', (e) => { motion = e.matches ? 0.3 : 1.0; });
 
-  // ?phase=0〜1 で位相を固定する（スクリーンショットやループ継ぎ目の確認用）。GUI の Freeze と同じ
-  const fixedPhase = parseFloat(new URLSearchParams(location.search).get('phase'));
-  if (Number.isFinite(fixedPhase)) {
-    params.freeze = true;
-    params.phase = fixedPhase;
-  }
-
-  let clock = params.phase * params.loop;
-  let last = performance.now();
+  // 時間の状態は params.phase（0〜1）だけで持つ
+  let last;
   let slow = 0;
   let frames = 0;
   let lost = false;
@@ -404,11 +392,8 @@
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
-    if (params.freeze) {
-      clock = params.phase * params.loop;
-    } else {
-      clock = (clock + dt * params.speed * motion) % params.loop;
-      params.phase = clock / params.loop;
+    if (!params.freeze) {
+      params.phase = (params.phase + dt * params.speed * motion / params.loop) % 1;
     }
 
     // 重いフレームが続いたら内部解像度を下げる
@@ -425,6 +410,7 @@
     gl.uniform1f(uPhase, params.phase);
     for (const [loc, key] of uLocs) gl.uniform1f(loc, params[key]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    // 1 フレーム目は opacity: 0 のまま描かせ、2 フレーム目で .ready を付けてフェードインを発火させる
     if (frames === 2) root.classList.add('ready');
     requestAnimationFrame(frame);
   }
@@ -450,13 +436,12 @@
     const stats = { fps: '' };
 
     const motionF = gui.addFolder('Motion');
-    motionF.add(params, 'loop', 4, 30, 1).name('Loop (s)').onChange(() => { clock = params.phase * params.loop; });
+    motionF.add(params, 'loop', 4, 30, 1).name('Loop (s)');
     motionF.add(params, 'speed', 0, 3, 0.05).name('Speed');
     motionF.add(params, 'rise', 1, 8, 1).name('Rise (per loop)');
     motionF.add(params, 'evol', 0, 6, 1).name('Churn (per loop)');
     motionF.add(params, 'freeze').name('Freeze');
-    motionF.add(params, 'phase', 0, 1, 0.001).name('Phase').listen()
-      .onChange((v) => { clock = v * params.loop; });
+    motionF.add(params, 'phase', 0, 1, 0.001).name('Phase').listen();
 
     const shapeF = gui.addFolder('Shape');
     shapeF.add(params, 'height', 0.15, 1.0, 0.01).name('Height');
@@ -481,6 +466,7 @@
     setInterval(() => { stats.fps = `${fps.toFixed(0)}  (${canvas.width}×${canvas.height})`; }, 500);
 
     // 現在値を JSON でコピー（DEFAULTS に貼り戻せる形）。クリップボード不可ならコンソールへ
+    const COPY_LABEL = 'Copy settings (JSON)';
     const copyCtrl = gui.add({
       copy: async () => {
         const { phase, freeze, ...rest } = params;
@@ -492,13 +478,12 @@
           console.log(json);
           copyCtrl.name('Logged to console');
         }
-        setTimeout(() => copyCtrl.name('Copy settings (JSON)'), 1500);
+        setTimeout(() => copyCtrl.name(COPY_LABEL), 1500);
       },
-    }, 'copy').name('Copy settings (JSON)');
+    }, 'copy').name(COPY_LABEL);
     gui.add({
       reset: () => {
         gui.reset();
-        clock = 0;
         resize();
       },
     }, 'reset').name('Reset to defaults');
@@ -507,11 +492,9 @@
     if (window.matchMedia('(max-width: 600px)').matches) gui.close();
 
     // H キーで GUI の表示を切り替える
-    let visible = true;
     window.addEventListener('keydown', (e) => {
       if (e.key.toLowerCase() !== 'h' || e.target.closest?.('input, textarea')) return;
-      visible = !visible;
-      gui.show(visible);
+      gui.show(gui._hidden);   // lil-gui のドキュメントにあるトグルの書き方
     });
   }
 })();

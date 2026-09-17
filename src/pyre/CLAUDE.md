@@ -87,7 +87,7 @@ constants in the shader.
 | Edge softness | `sharp` (0.3) → `uSharp` | Width of `body = smoothstep(0, uSharp, heat)`. The `+ 0.12` in `T` keeps edges orange |
 | Intensity | `intensity` (7.1) → `uIntensity` | `T*T` gain |
 | Colour | `temp` (0.69) → `uTemp` | `1 - exp(-T * vec3(3.0, 1.1*t, 0.30*t²))`, then `pow(..., vec3(1.1, 1.45, 2.0))`; higher pushes toward yellow/white |
-| Depth | `back` (1) → `uBack` | Back layer × `vec3(0.32, 0.11, 0.03)`, hidden where the front layer is bright (`cover`); too strong fills the gaps with a red wash |
+| Depth | `back` (1) → `uBack` | Back layer × `vec3(0.32, 0.11, 0.03)`, hidden where the front layer is bright (`cover`), and skipped entirely where `cover` is 1; too strong fills the gaps with a red wash |
 | Haze / vignette | `haze` (1.2), `vignette` (0.5) | Warm glow above the flames; edge darkening |
 | Portrait | — | `k = pow(1/aspect, 0.6)` keeps tongues from stretching on tall screens; 1.0 would be fully width-based and too short |
 
@@ -100,6 +100,8 @@ constants in the shader.
   already the floor (picked with the GUI), so Auto resolution only acts after Resolution has been
   raised.
 - The cost is two `flame()` layers (6-octave fbm + 3-octave ridged each) plus a 3-octave warp ×2.
+  `flame()` returns early (skipping `ridged`) where `heat < -0.45`, since that pixel is black
+  anyway, and the back layer is skipped where the front fully covers it. Both are output-identical.
   `quality` cannot go lower, so remove octaves if more speed is needed.
 
 ## Design
